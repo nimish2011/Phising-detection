@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LinkGuard — check a link before you click it</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg: #EEF2F4;
+    --surface: #FFFFFF;
+    --ink: #0F2438;
+    --ink-soft: #4A5D6B;
+    --line: #D7E0E4;
+    --safe: #1F7A5C;
+    --safe-bg: #E7F3EE;
+    --risk: #B23A2E;
+    --risk-bg: #FBEAE8;
+  }
+  *{ box-sizing: border-box; }
+  html,body{
+    margin:0; padding:0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: 'IBM Plex Mono', monospace;
+  }
+  body{
+    min-height:100vh;
+    display:flex;
+    justify-content:center;
+    padding: 72px 24px 96px;
+  }
+  main{
+    width:100%;
+    max-width: 640px;
+  }
+  .wordmark{
+    font-family:'IBM Plex Mono', monospace;
+    font-size: 13px;
+    letter-spacing: 0.08em;
+    color: var(--ink-soft);
+    margin-bottom: 28px;
+  }
+  .wordmark span{ color: var(--ink); font-weight:600; }
+  h1{
+    font-family:'Fraunces', serif;
+    font-weight:600;
+    font-size: clamp(32px, 5vw, 44px);
+    line-height:1.15;
+    letter-spacing: -0.01em;
+    margin: 0 0 14px;
+  }
+  p.lede{
+    font-size:15px;
+    line-height:1.6;
+    color: var(--ink-soft);
+    max-width: 52ch;
+    margin: 0 0 40px;
+  }
+  form{
+    display:flex;
+    gap:10px;
+    margin-bottom: 8px;
+  }
+  input[type="text"]{
+    flex:1;
+    font-family:'IBM Plex Mono', monospace;
+    font-size:15px;
+    padding: 14px 16px;
+    border: 1.5px solid var(--line);
+    border-radius: 6px;
+    background: var(--surface);
+    color: var(--ink);
+    outline: none;
+    transition: border-color .15s ease;
+  }
+  input[type="text"]::placeholder{ color: #9FB0B8; }
+  input[type="text"]:focus{
+    border-color: var(--ink);
+  }
+  button{
+    font-family:'IBM Plex Mono', monospace;
+    font-weight:600;
+    font-size:15px;
+    padding: 14px 22px;
+    border: none;
+    border-radius: 6px;
+    background: var(--ink);
+    color: var(--bg);
+    cursor: pointer;
+    transition: transform .1s ease, opacity .15s ease;
+    white-space:nowrap;
+  }
+  button:hover{ opacity:.88; }
+  button:active{ transform: scale(.98); }
+  button:disabled{ opacity:.5; cursor: progress; }
+  button:focus-visible, input:focus-visible{
+    outline: 2px solid var(--ink);
+    outline-offset: 2px;
+  }
+  .hint{
+    font-size:12.5px;
+    color:#8296A1;
+    margin: 0 0 8px;
+  }
+  .error{
+    font-size:14px;
+    color: var(--risk);
+    margin: 14px 0 0;
+    display:none;
+  }
+  #result{
+    margin-top: 40px;
+    display:none;
+  }
+  .verdict{
+    display:flex;
+    align-items:flex-start;
+    gap:14px;
+    padding: 20px 22px;
+    border-radius: 8px;
+    border-left: 4px solid transparent;
+    background: var(--surface);
+    animation: rise .25s ease;
+  }
+  .verdict.safe{ border-left-color: var(--safe); }
+  .verdict.risk{ border-left-color: var(--risk); }
+  .verdict .mark{
+    font-size:22px;
+    line-height:1;
+    margin-top:2px;
+  }
+  .verdict.safe .mark{ color: var(--safe); }
+  .verdict.risk .mark{ color: var(--risk); }
+  .verdict .text h2{
+    font-family:'Fraunces', serif;
+    font-size:20px;
+    font-weight:600;
+    margin:0 0 4px;
+  }
+  .verdict .text .url{
+    font-size:13px;
+    color: var(--ink-soft);
+    word-break: break-all;
+  }
+  @keyframes rise{
+    from{ opacity:0; transform: translateY(6px); }
+    to{ opacity:1; transform: translateY(0); }
+  }
+  .checklist{
+    margin-top: 18px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    overflow:hidden;
+    background: var(--surface);
+  }
+  .checklist .row{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    gap: 16px;
+    padding: 11px 18px;
+    font-size: 13.5px;
+    border-bottom: 1px solid var(--line);
+  }
+  .checklist .row:last-child{ border-bottom:none; }
+  .checklist .label{ color: var(--ink); }
+  .checklist .state{
+    font-weight:600;
+    font-size:13px;
+    flex-shrink:0;
+  }
+  .state.pass{ color: var(--safe); }
+  .state.fail{ color: var(--risk); }
+  .state.neutral{ color:#9FB0B8; }
+  #loading{
+    display:none;
+    margin-top: 40px;
+    font-size:14px;
+    color: var(--ink-soft);
+  }
+  footer{
+    margin-top: 56px;
+    font-size:12px;
+    color:#9FB0B8;
+    line-height:1.6;
+  }
+</style>
+</head>
+<body>
+<main>
+  <div class="wordmark"><span>LinkGuard</span> · phishing inspection</div>
+  <h1>Paste a link.<br>We'll check it.</h1>
+  <p class="lede">
+    LinkGuard runs a link through the same signals security researchers use to
+    spot phishing sites — before you click it.
+  </p>
+
+  <form id="check-form" autocomplete="off">
+    <input type="text" id="url-input" name="url" placeholder="https://example.com" required>
+    <button type="submit" id="submit-btn">Check</button>
+  </form>
+  <p class="hint">Works with or without https:// — just paste the link.</p>
+  <p class="error" id="error-msg"></p>
+
+  <div id="loading">Inspecting the link — this can take a few seconds…</div>
+
+  <div id="result">
+    <div class="verdict" id="verdict-card">
+      <div class="mark" id="verdict-mark">—</div>
+      <div class="text">
+        <h2 id="verdict-title">—</h2>
+        <div class="url" id="verdict-url">—</div>
+      </div>
+    </div>
+    <div class="checklist" id="checklist"></div>
+  </div>
+
+  <footer>
+    LinkGuard makes an automated best-effort assessment. It isn't a guarantee —
+    when in doubt, don't enter personal information or credentials.
+  </footer>
+</main>
+
+<script>
+const FEATURE_LABELS = {
+  having_IP_Address: "Hostname isn't a raw IP address",
+  URL_Length: "URL length looks normal",
+  Shortining_Service: "Not a link-shortening service",
+  having_At_Symbol: "No '@' hidden in the URL",
+  double_slash_redirecting: "No suspicious redirect pattern",
+  Prefix_Suffix: "No dash in the domain name",
+  having_Sub_Domain: "Subdomain structure looks normal",
+  SSLfinal_State: "Valid, trusted HTTPS certificate",
+  Domain_registeration_length: "Domain registered for a reasonable term",
+  Favicon: "Favicon loads from the same domain",
+  port: "Uses a standard port",
+  HTTPS_token: "'https' isn't faked inside the domain",
+  Request_URL: "Page resources load from the same domain",
+  URL_of_Anchor: "Links on the page point where expected",
+  Links_in_tags: "Meta/script tags reference the same domain",
+  SFH: "Forms submit to a sensible destination",
+  Submitting_to_email: "Forms don't submit via email",
+  Abnormal_URL: "WHOIS record matches the domain",
+  Redirect: "Few or no redirects",
+  on_mouseover: "No status-bar spoofing script",
+  RightClick: "Right-click isn't disabled",
+  popUpWidnow: "No suspicious pop-up form",
+  Iframe: "No hidden iframe tricks",
+  age_of_domain: "Domain has some age to it",
+  DNSRecord: "Domain resolves via DNS",
+};
+
+const form = document.getElementById('check-form');
+const input = document.getElementById('url-input');
+const btn = document.getElementById('submit-btn');
+const errorMsg = document.getElementById('error-msg');
+const loading = document.getElementById('loading');
+const result = document.getElementById('result');
+const verdictCard = document.getElementById('verdict-card');
+const verdictMark = document.getElementById('verdict-mark');
+const verdictTitle = document.getElementById('verdict-title');
+const verdictUrl = document.getElementById('verdict-url');
+const checklist = document.getElementById('checklist');
+
+function stateFor(value){
+  if(value === 1) return {cls:'pass', label:'Pass'};
+  if(value === -1) return {cls:'fail', label:'Flagged'};
+  return {cls:'neutral', label:'Unclear'};
+}
+
+form.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const url = input.value.trim();
+  if(!url) return;
+
+  errorMsg.style.display = 'none';
+  result.style.display = 'none';
+  loading.style.display = 'block';
+  btn.disabled = true;
+
+  try{
+    const res = await fetch('/predict_url', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({url})
+    });
+
+    if(!res.ok){
+      throw new Error('The server could not check that link.');
+    }
+
+    const data = await res.json();
+    const isSafe = data.prediction === 'Legitimate';
+
+    verdictCard.className = 'verdict ' + (isSafe ? 'safe' : 'risk');
+    verdictMark.textContent = isSafe ? '✓' : '!';
+    verdictTitle.textContent = isSafe ? 'Looks legitimate' : 'Looks like phishing';
+    verdictUrl.textContent = data.url;
+
+    checklist.innerHTML = '';
+    Object.entries(data.features).forEach(([key, value]) => {
+      const label = FEATURE_LABELS[key] || key;
+      const {cls, label: stateLabel} = stateFor(value);
+      const row = document.createElement('div');
+      row.className = 'row';
+      row.innerHTML = `<span class="label">${label}</span><span class="state ${cls}">${stateLabel}</span>`;
+      checklist.appendChild(row);
+    });
+
+    result.style.display = 'block';
+  }catch(err){
+    errorMsg.textContent = "Couldn't check that link right now. Double check it's a valid URL and try again.";
+    errorMsg.style.display = 'block';
+  }finally{
+    loading.style.display = 'none';
+    btn.disabled = false;
+  }
+});
+</script>
+</body>
+</html>
