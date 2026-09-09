@@ -1,0 +1,22 @@
+python-dotenv
+pandas
+numpy
+pymongo
+certifi
+pymongo[srv]
+scikit-learn
+scipy
+pyaml
+mlflow
+dagshub
+fastapi
+uvicorn
+dill
+python-multipart
+requests
+beautifulsoup4
+tldextract
+dnspython
+python-whois
+
+# -e .
